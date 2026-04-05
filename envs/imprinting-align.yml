@@ -1,0 +1,15 @@
+name: imprinting-align
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - python=3.8
+  - numpy
+  - bwa
+  - samtools
+  - bcftools
+  - trimmomatic
+  - star
+  - picard
+  - bedtools
+  - gatk4
