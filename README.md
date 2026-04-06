@@ -61,6 +61,7 @@ The following scripts are implemented and tested:
 
 ## Repository Structure
 
+```
 imprinting-ase-analysis/
 ├── scripts/
 │   ├── 01_trim_reads.sh
@@ -97,6 +98,7 @@ imprinting-ase-analysis/
 │   └── imprinting-align.yml     # Conda environment
 ├── LICENSE
 └── README.md
+```
 
 ##  Data Access
 
