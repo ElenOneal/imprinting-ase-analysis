@@ -2,3 +2,4 @@ results/*.txt
 results/*.pdf
 config/counts_object
 Mguttatusvar_IM767_887_v2.1.gene_exons.gff3
+pseudogenomes.sh
