@@ -179,8 +179,8 @@ def call_homo_snps(ref, alt, gT):
 
 def make_parental_snp_catalog(variantfile, mindepth, maxdepth):
 
-    out1.write('contig\tbedPosition\tPosition\tMatAllele\tPatAllele\tHetType\tGene\n')
-    out2.write('contig\tbedPosition\tPosition\tMatAllele\tPatAllele\tHetType\tGene\n')
+    out1.write('contig\tbedPosition\tPosition\tParent1Allele\tParent2Allele\tHetType\tGene\n')
+    out2.write('contig\tbedPosition\tPosition\tParent1Allele\tParent2Allele\tHetType\tGene\n')
 
     fh = logging.FileHandler(outprefix + '.log')
     fh.setLevel(logging.DEBUG)

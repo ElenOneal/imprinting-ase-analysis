@@ -13,3 +13,4 @@ dependencies:
   - picard
   - bedtools
   - gatk4
+  - pysam

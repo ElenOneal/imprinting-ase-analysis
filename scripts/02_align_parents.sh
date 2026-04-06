@@ -55,3 +55,5 @@ while IFS=$'\t' read -r f c a b d; do
   } > "$script_file"
 done < "$samples"
 
+echo "All alignment scripts created. To submit jobs, run:"
+echo "for script in $output_dir/*.align.sh; do sbatch \"\$script\"; done"

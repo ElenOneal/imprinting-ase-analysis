@@ -50,3 +50,5 @@ while IFS=$'\t' read -r f c a b; do
   } > "$script_file"
 done < "$samples"
 
+echo "All trimming scripts created. To submit jobs, run:"
+echo "for script in $execute_dir/*.trim.sh; do sbatch \"\$script\"; done"

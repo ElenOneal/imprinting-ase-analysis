@@ -1,0 +1,348 @@
+---
+title: "Genomic Imprinting Analysis in *Mimulus nudatus* Hybrid Endosperm"
+author: "Elen Oneal"
+date: '`r strftime(Sys.time(), format = "%B %d, %Y")`'
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    theme: flatly
+    code_folding: hide
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+
+library(here)
+library(knitr)
+library(rmarkdown)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(ggvenn)
+library(edgeR)
+library(limma)
+
+source(here('scripts', 'R', 'edger_preanalysis.R'))
+source(here('scripts', 'R', 'plot_mds.R'))
+source(here('scripts', 'R', 'merge_snpcounts.R'))
+source(here('scripts', 'R', 'snpcounts_by_parent.R'))
+source(here('scripts', 'R', 'filter_snpcounts.R'))
+source(here('scripts', 'R', 'imprinting_analysis.R'))
+source(here('scripts', 'R', 'plot_imprinted_genes.R'))
+source(here('scripts', 'R', 'get_megs_pegs.R'))
+```
+
+## Introduction
+
+Genomic imprinting is an epigenetic phenomenon in which gene expression 
+is biased toward one parental allele. In flowering plants, imprinting is 
+largely restricted to the endosperm, a triploid nutritive tissue that 
+supports embryo development. Because the endosperm is formed by fusion of 
+the diploid maternal central cell with a haploid paternal gamete, most 
+endosperm-expressed genes conform to an expected 2:1 maternal:paternal 
+expression ratio. Imprinted genes deviate from this expectation. 
+Maternally expressed genes (MEGs) show maternal bias, while paternally 
+expressed genes (PEGs) show paternal bias.
+
+Imprinting is theorized to result from genomic conflict between maternal 
+and paternal genomes over resource allocation to offspring. Disruption in imprinting and the subsequent disruption in endosperm tissue development can lead to hybrid seed inviability, and is thought to be an important factor in the emergence of reproductive isolation (speciation) flowering plants. If so, then imprinted genes may play a causal role in the emergence of barriers to hybridization between closely related species. This project is part of a larger research study that combines rna sequencing of endosperm transcriptomes with QTL mapping in reciprocal hybrid backcross populations to identify and characterize genomic loci contributing to hybrid seed inviability.
+
+Here we characterize genomic imprinting in hybrid endosperm from reciprocal 
+crosses within the *Mimulus guttatus* species complex, focusing on crosses 
+between *M. nudatus* inbred lines DHRO22 and GMR2. We use allele-specific 
+expression (ASE) analysis to identify MEGs and PEGs, leveraging 
+parent-of-origin SNPs identified from parental DNA-seq data. 
+
+## Study Design
+
+Reciprocal crosses were performed between two *M. nudatus* inbred lines:
+
+- **DHRO22 × GMR2** — DHRO22 as maternal parent (3 replicates)
+- **GMR2 × DHRO22** — GMR2 as maternal parent (4 replicates)
+
+RNA-seq libraries were generated from hybrid endosperm tissue. Reads were 
+aligned to the *M. guttatus* IM767 v2 reference genome using STAR. 
+Allele-specific read counts were quantified at parent-of-origin SNPs 
+identified from parental DNA-seq using BWA and bcftools. Imprinting was 
+tested using a likelihood ratio test in edgeR, with cross direction as a 
+covariate to control for maternal effects.
+
+In addition to these samples, we also sequenced hybrid endosperms in multiple M. guttatus crosses. Finally, we sequenced whole fruits of 2 *M. guttatus* and 3 *M. nudatus* fruits. These samples are included for visualization purposes only. 
+
+## MDS Analysis
+
+We first examined sample clustering using multidimensional scaling (MDS) 
+to assess overall sample quality and verify that samples cluster by 
+species and cross direction.  
+
+The first MDS plot includes all samples RNA sequenced in this study.
+
+```{r load_endosperm_count_object, echo=FALSE, eval=TRUE}
+
+# Load featureCounts object
+fc <- readRDS(here('config', 'counts_object'))
+
+# Build gene length table
+gl <- data.frame(fc$annotation$GeneID, fc$annotation$Length)
+colnames(gl) <- c('gene_name', 'length')
+gl$gene_name <- gsub('.v2.1', '', gl$gene_name)
+
+# Build count matrix
+gc <- as.data.frame(fc$counts)
+colnames(gc) <- gsub('.2.Aligned.sortedByCoord.out.bam', '', colnames(gc))
+gc$gene_name <- gsub('.v2.1', '', rownames(gc))
+rownames(gc) <- c()
+
+# Reorder columns
+gc <- gc %>% select(
+  matches('_RNA'), matches('CSS4x'), matches('IM767x'),
+  matches('DHR14x'), matches('SODx'), matches('DHRO22x'),
+  matches('GMR2x'), everything()
+)
+
+# Build samples data frame for new edger_preanalysis signature
+samples_df <- data.frame(
+  sample = colnames(gc)[colnames(gc) != "gene_name"],
+  group  = c(1,1,1,1,2,2,2,2,3,3,3,4,4,4,5,5,5,6,6,6,7,7,7,7)
+)
+
+e <- edger_preanalysis(gc, samples_df, 1, 5, 'wholeseed and endosperm')
+x <- e$y
+
+
+# MDS plot
+group_labels <- c(
+  '1' = 'Wholeseed',
+  '2' = 'CSS4xIM767',
+  '3' = 'IM767xCSS4',
+  '4' = 'DHR14xSOD',
+  '5' = 'SODxDHR14',
+  '6' = 'DHRO22xGMR2',
+  '7' = 'GMR2xDHRO22'
+)
+
+plot_mds_gg(x,
+            color_var = 'group',
+            labels    = group_labels,
+            title     = 'MDS: wholeseed and endosperm')
+```
+
+We then restrict our analysis to the *M. nudatus* hybrid endosperm. 
+
+```{r nudatus_endosperm_expressed_genes, echo=FALSE, eval=TRUE}
+
+# Subset to M. nudatus endosperm samples only
+ngc <- gc %>% select(matches('DHRO22x'), matches('GMR2x'), gene_name)
+
+# Build samples data frame
+nudatus_df <- data.frame(
+  sample = colnames(ngc)[colnames(ngc) != "gene_name"],
+  group  = factor(c(1, 1, 1, 2, 2, 2, 2))
+)
+
+# Run edgeR pre-analysis
+ne <- edger_preanalysis(ngc, nudatus_df, 1, 2, 'nudatus endosperm')
+nx <- ne$y
+
+# Smear plot inline
+#plotSmear(ne$qlf, main = "Smear plot: M. nudatus endosperm")
+#abline(h = c(-2, 2), col = "gray", lty = 2)
+
+# MDS plot
+group_labels <- c('1' = 'DHRO22xGMR2', '2' = 'GMR2xDHRO22')
+mds_nudatus <- plot_mds_gg(nx,
+                            color_var = 'group',
+                            labels    = group_labels,
+                            title     = 'MDS: M. nudatus hybrid endosperm')
+mds_nudatus
+
+# Compute minimum CPM threshold from nudatus library sizes
+# CPM equivalent of 10 counts in the smallest nudatus library
+min.cpm.nudatus <- 10 / (min(nx$samples$lib.size) / 1000000)
+message(sprintf("Min CPM threshold: %.2f (= 10 counts in smallest library of %.1fM reads)",min.cpm.nudatus, min(nx$samples$lib.size)/1000000))
+
+# Filter for genes expressed above threshold in at least 2 samples
+keep <- rowSums(cpm(nx) > min.cpm.nudatus) >= 2
+nud.gene.df   <- ne$df_kept[keep, ]
+nud.gene.list <- as.list(rownames(nud.gene.df))
+
+message(sprintf("Genes expressed in M. nudatus endosperm: %d", 
+                length(nud.gene.list)))
+
+# Write raw counts for expressed genes
+write.table(
+  data.frame(nud.gene.df, gene_name = rownames(nud.gene.df)),
+  here('results', 'nudatus_endosperm_raw_counts.txt'),
+  quote = FALSE, row.names = FALSE, sep = '\t'
+)
+```
+
+We next examined the overlap between genes expressed in *M. nudatus* 
+endosperm and genes with informative parent-of-origin SNPs, since only 
+genes in both sets can be tested for imprinting.
+
+```{r nudatus_gene_snps, echo=FALSE, eval=TRUE}
+nudatus.snps <- read.table(here('config', 'dhro22_gmr2_coding_sequence_snps.bed'),
+                           h = TRUE, sep = '\t')
+x <- list('Expressed genes' = nud.gene.df$gene_name,
+          'Genes with parental SNPs' = nudatus.snps$Gene)
+ggvenn(x, text_size = 8, show_percentage = FALSE)
+```
+
+Load files with gene information: mimulus/arabidopsis orthologs, synonyms for arabidopsis genes, defline for arabidopsis genes, and coordinates for genes in IM767 v2 reference genome.
+
+```{r,get_gene_info,include=FALSE,eval=TRUE}
+mim_arab_orthologs <- readRDS(here('config','mimulus_arabidopsis_orthologs'))
+arab_syn <- readRDS(here('config','arabidopsis_synonyms'))
+arab_defline <- readRDS(here('config','arabidopsis_defline'))
+gene.coord <- read.table(here('config','im767.gene_coordinates.txt'),h=T)
+```
+
+Load allelic counts for each sample in the hybrid endosperm RNA sequencing experiment. Perform imprinting analysis using edgeR. We use edgeR to fit a negative binomial GLM incorporating both read source (maternal vs paternal) and cross direction as covariates. A likelihood ratio test (LRT) identified genes with significant parent-of-origin biased expression while controlling for cross direction effects, with FDR correction using the Benjamini-Hochberg method.
+
+```{r nudatus_imprinting, echo=FALSE, eval=TRUE,message=TRUE}
+fdr_cutoff <- 0.05
+cross        <- 'DHRO22xGMR2'
+reversecross <- 'GMR2xDHRO22'
+species      <- 'M. nudatus'
+# Load and merge per-sample allele count files
+nc <- multiMerge(here('results'), 
+                 '.nudatus.allelecounts.txt', 
+                 'dhro22', 'gmr2')
+
+# Assign maternal/paternal labels based on cross direction
+nc <- prepare_snpcounts(nc, 'DHRO22xGMR2', 'dhro22', 'gmr2')
+
+# Write raw SNP counts
+write.table(
+  data.frame(nc, gene_name = row.names(nc)),
+  here('results', paste0('nudatus_raw_snpcounts.txt')),
+  quote = FALSE, row.names = FALSE, sep = '\t'
+)
+
+# Run parent-specific expression analysis
+# cpm.filter=2, n.cpm.filter=6 (must exceed threshold in all samples)
+invisible(capture.output(
+  pse.nud <- parent_specific_expression(nc, 2, 6, 'DHRO22xGMR2', 'DHRO22', 'GMR2', fdr_cutoff)
+))
+
+normalized_nudatus_counts  <- pse.nud[[1]]
+pse.nud.degs               <- pse.nud[[2]]
+pse.nud.edgeR.lrt          <- pse.nud[[3]]
+pse.nud.edgeR.fit          <- pse.nud[[4]]
+pse.nud.edgeR              <- pse.nud[[5]]
+pse.nud.significant_genes  <- pse.nud[[6]]
+nud.imp.exp                <- pse.nud[[7]]
+
+# Require minimum 3 informative SNP reads summed across replicates
+# in both cross directions to ensure reliable maternal proportion estimates
+nud.imp.exp <- nud.imp.exp %>% filter(total1 >= 10 & total2 >=10)
+pse.nud.significant_genes <- pse.nud.significant_genes %>% 
+  filter(gene_name %in% nud.imp.exp$gene_name)
+
+# Imprinting scatter plot
+nud.plot <- imprinting_plot(nud.imp.exp, pse.nud.significant_genes, 
+                            cross, reversecross, species)
+nud.plot
+
+ggsave(here('results', 'figures', paste0('Allelic_Imbalance_', cross, '.pdf')),
+       plot = nud.plot, width = 8, height = 6)
+
+# Maternal proportion histogram
+maternal_histogram(nud.imp.exp, species)
+
+# Get MEG and PEG lists
+l <- get_imprinted_list(nud.imp.exp, cross, reversecross, 
+                        pse.nud.significant_genes, pse.nud.edgeR.lrt, fdr_cutoff)
+
+nud.imp.exp  <- l[[1]]
+nud.megs     <- l[[2]]
+nud.pegs     <- l[[3]]
+nud.results  <- l[[4]]
+
+message(sprintf("MEGs: %d", nrow(nud.megs)))
+message(sprintf("PEGs: %d", nrow(nud.pegs)))
+message(sprintf("Mean maternal proportion MEGs: %.3f", mean(nud.megs$mean_maternal)))
+message(sprintf("Mean maternal proportion PEGs: %.3f", mean(nud.pegs$mean_maternal)))
+
+```
+
+```{r nudatus_imprinting_summary, echo=FALSE, eval=TRUE}
+
+# Summary statistics
+n_expressed   <- nrow(nud.imp.exp)
+n_megs        <- nrow(nud.megs)
+n_pegs        <- nrow(nud.pegs)
+mean_meg_mat  <- mean(nud.megs$mean_maternal)
+mean_peg_mat  <- mean(nud.pegs$mean_maternal)
+mean_peg_pat  <- 1 - mean_peg_mat
+
+# Print as a clean table
+summary_df <- data.frame(
+  Metric = c(
+    'Genes with informative SNPs',
+    'Maternally expressed genes (MEGs)',
+    'Paternally expressed genes (PEGs)',
+    'Mean maternal proportion in MEGs',
+    'Mean paternal proportion in PEGs'
+  ),
+  Value = c(
+    n_expressed,
+    n_megs,
+    n_pegs,
+    sprintf('%.1f%%', mean_meg_mat * 100),
+    sprintf('%.1f%%', mean_peg_pat * 100)
+  )
+)
+
+knitr::kable(summary_df, 
+             col.names = c('Metric', 'Value'),
+             align = c('l', 'r'),
+             caption = paste0('Summary of imprinting analysis in ',
+                             '*M. nudatus*', ' hybrid endosperm'))
+```
+
+```{r nudatus_annotate_results, echo=FALSE, eval=TRUE}
+# Annotate with Arabidopsis orthologs and gene coordinates
+nud.megs <- list(nud.megs, nud.results, mim_arab_orthologs, gene.coord) %>%
+  Reduce(function(d1, d2) left_join(d1, d2, by = 'gene_name'), .)
+nud.megs <- list(nud.megs, arab_syn, arab_defline) %>%
+  Reduce(function(d1, d2) left_join(d1, d2, by = 'arabidopsis_name'), .) %>%
+dplyr::select(gene_name, contig, start,
+              all_of(paste0(cross, '_prop_maternal')),
+              all_of(paste0(reversecross, '_prop_maternal')),
+              mean_maternal, logFC, logCPM, LR, PValue, P_adj,
+              arabidopsis_name, synonym, defline)
+
+nud.pegs <- list(nud.pegs, nud.results, mim_arab_orthologs, gene.coord) %>%
+  Reduce(function(d1, d2) left_join(d1, d2, by = 'gene_name'), .)
+nud.pegs <- list(nud.pegs, arab_syn, arab_defline) %>%
+  Reduce(function(d1, d2) left_join(d1, d2, by = 'arabidopsis_name'), .) %>%
+ dplyr::select(gene_name, contig, start,
+              all_of(paste0(cross, '_prop_maternal')),
+              all_of(paste0(reversecross, '_prop_maternal')),
+              mean_maternal, logFC, logCPM, LR, PValue, P_adj,
+              arabidopsis_name, synonym, defline)%>%
+  unique()
+
+# Write gene lists
+write.table(nud.megs %>% select(gene_name),
+            here('results', paste0('MEGs_', cross, '_list.txt')),
+            row.names = FALSE, sep = '\t', col.names = TRUE, quote = FALSE)
+
+write.table(nud.pegs %>% select(gene_name),
+            here('results', paste0('PEGs_', cross, '_list.txt')),
+            row.names = FALSE, sep = '\t', col.names = TRUE, quote = FALSE)
+
+# Write annotated gene lists
+write.table(nud.megs,
+            here('results', paste0('MEGs_', cross, '_annotated.txt')),
+            row.names = FALSE, quote = FALSE, col.names = TRUE, sep = '\t')
+
+write.table(nud.pegs,
+            here('results', paste0('PEGs_', cross, '_annotated.txt')),
+            row.names = FALSE, quote = FALSE, col.names = TRUE, sep = '\t')
+```
+
+
