@@ -44,14 +44,15 @@ can be downloaded from Phytozome: https://phytozome-next.jgi.doe.gov
 This repository is under active development. 
 
 The following scripts are implemented and tested:
-- `01_trim_reads.sh` — Trimmomatic quality trimming
-- `02_align_parents.sh` — BWA alignment of parental DNA-seq
-- `03_filter_parent_bams.sh` — Filter parental BAM files
-- `04_call_variants.sh` — bcftools SNP calling
-- `05_snp_catalog.sh` — Extract coding SNPs per gene
-- `06_index_star.sh` — Build STAR index
+- `trimmomatic.sh` — Trimmomatic quality trimming
+- `trim_galore_reads.sh` — Trim Galore quality trimming for endosperm RNA-seq
+- `align_parents.sh` — BWA alignment of parental DNA-seq
+- `filter_parent_bams.sh` — Filter parental BAM files
+- `bcftools_call_variants.sh` — bcftools SNP calling
+- `parental_snp_catalog.sh` — Extract coding SNPs per gene
+- `index_star_genome.sh` — Build STAR index
 - `07_align_star.sh` — STAR alignment of hybrid endosperm RNA-seq
-- `08_reindex_star.sh` — Re-index BAM files
+- `reindex_star_genome.sh` — Re-index STAR genome with discovered splice junctions
 - `09_realign_star.sh` — Re-align to reference
 - `10_filter_rna.sh` — Filter RNA BAM files for high-quality, uniquely mapped reads
 - `11_snpcount_array.sh` — Count parental alleles per gene (SLURM array job)
@@ -60,22 +61,22 @@ The following scripts are implemented and tested:
 - `12_cat_allelecounts.sh` — Concatenate per-chromosome allele count files into per-sample genome-wide files
 
 ## Repository Structure
-
 ```
 imprinting-ase-analysis/
 ├── scripts/
-│   ├── 01_trim_reads.sh
-│   ├── 02_align_parents.sh
-│   ├── 03_filter_parent_bams.sh
-│   ├── 04_call_variants.sh
-│   ├── 05_snp_catalog.sh
-│   ├── 06_index_star.sh
+│   ├── align_parents.sh
+│   ├── bcftools_call_variants.sh
+│   ├── filter_parent_bams.sh
 │   ├── 07_align_star.sh
-│   ├── 08_reindex_star.sh
 │   ├── 09_realign_star.sh
 │   ├── 10_filter_rna.sh
 │   ├── 11_snpcount_array.sh
 │   ├── 12_cat_allelecounts.sh
+│   ├── index_star_genome.sh
+│   ├── parental_snp_catalog.sh
+│   ├── reindex_star_genome.sh
+│   ├── trim_galore_reads.sh
+│   ├── trimmomatic.sh
 │   ├── R/
 │   │   ├── edger_preanalysis.R
 │   │   ├── filter_snpcounts.R
@@ -120,25 +121,28 @@ conda activate imprinting-align
 ```
 ## Usage
 
-Each script is standalone and processes one stage of the pipeline. Scripts are numbered and should be run in order. Run individual scripts with appropriate arguments:
+Each script is standalone and processes one stage of the pipeline. Run individual scripts in pipeline order with appropriate arguments:
 
 ```bash
 # Stage 1: Parental SNP discovery (DNA-seq)
-bash scripts/01_trim_reads.sh <input_dir> <output_dir>
-bash scripts/02_align_parents.sh <samples.tsv> <output_dir>
-bash scripts/03_filter_parent_bams.sh <samples.tsv> <bam_dir> <output_dir>
-bash scripts/04_call_variants.sh <samples.tsv> <output_dir>
-bash scripts/05_snp_catalog.sh <vcf_dir> <gff3> <output_dir>
+bash scripts/trimmomatic.sh <samples.tsv> <read_dir> <clean_dir> <execute_dir> <partition>
+bash scripts/align_parents.sh <samples.tsv> <execute_dir> <reads_dir> <genome_dir> <genome_fasta> <partition> [time]
+bash scripts/filter_parent_bams.sh <samples.tsv> <output_dir> <picard> <genome_dir> <genome_fasta> <partition> <mem>
+bash scripts/bcftools_call_variants.sh <listfile> <bamfiles> <output_dir> <genome_dir> <genome> <prefix> <parent1> <parent2> <gene_bed> <min_mq> <min_bq> <qual_thresh> <cluster_size> <cluster_window> <partition>
+bash scripts/parental_snp_catalog.sh <listfile> <prefix> <output_dir> <gene_gff> <partition>
 
 # Stage 2: Hybrid endosperm RNA-seq alignment and ASE quantification
-bash scripts/06_index_star.sh <genome> <annotation> <output_dir>
-bash scripts/07_align_star.sh <samples.tsv> <index_dir> <output_dir>
-bash scripts/08_reindex_star.sh <samples.tsv> <bam_dir>
-bash scripts/09_realign_star.sh <samples.tsv> <index_dir> <output_dir>
+bash scripts/trim_galore_reads.sh <samples.tsv> <read_dir> <clean_dir> <execute_dir> <partition>
+bash scripts/index_star_genome.sh <genome_dir> <genome> <gtf> <partition>
+bash scripts/07_align_star.sh <samples.tsv> <output_dir> <read_dir> <genome_dir> <genome> <gtf> <partition>
+bash scripts/reindex_star_genome.sh <genome_dir> <genome> <gtf> <tab_dir>
+bash scripts/09_realign_star.sh <samples.tsv> <output_dir> <read_dir> <genome_dir> <genome> <gtf>
 bash scripts/10_filter_rna.sh <samples.tsv> <output_dir>
 bash scripts/11_snpcount_array.sh <samples.tsv> <snp_catalog> <bam_dir> <output_dir> <scripts_dir> <partition> <conda_env>
 bash scripts/12_cat_allelecounts.sh <samples.tsv> <output_dir>
 ```
+
+`bcftools_call_variants.sh` now writes a SLURM array job script to the output directory and prints the `sbatch` command, rather than auto-submitting it.
 
 **Outputs:** 
 - Stage 1: parent-of-origin SNP catalog (.bed format)

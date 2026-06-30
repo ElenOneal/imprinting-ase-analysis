@@ -49,6 +49,8 @@ echo '#SBATCH --cpus-per-task=6'
 echo "#SBATCH --chdir=$genome_dir"
 echo '#SBATCH --mem=24G'
 echo ''
+echo "source $(conda info --base)/etc/profile.d/conda.sh"
+echo "conda activate imprinting-align"
 echo "# Copy splice junction files"
 echo "cp $tab_dir/*.tab ."
 echo ''

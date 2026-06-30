@@ -3,11 +3,11 @@
 set -euo pipefail
 
 # Create STAR index
-# Usage: bash 07_index_star.sh <genome_dir> <genome> <gtf>
+# Usage: bash 07_index_star.sh <genome_dir> <genome> <gtf> <partition>
 
 # Check if the correct number of arguments is provided
-if [ "$#" -ne 3 ]; then
-    echo "Usage: $0 genome_dir genome gtf"
+if [ "$#" -ne 4 ]; then
+    echo "Usage: $0 genome_dir genome gtf partition"
     exit 1
 fi
 
@@ -15,6 +15,7 @@ fi
 genome_dir="$1"
 genome="$2"
 gtf="$3"
+partition="$4"
 
 # Validate inputs
 if [ ! -d "$genome_dir" ]; then
@@ -37,11 +38,13 @@ echo '#!/bin/bash' > index.sh
 echo '#SBATCH --job-name=star_index' >> index.sh
 echo '#SBATCH --output=star_index.out' >> index.sh
 echo '#SBATCH --error=star_index.err' >> index.sh
-echo '#SBATCH -p common,scavenger' >> index.sh
+echo "#SBATCH -p $partition" >> index.sh
 echo '#SBATCH --cpus-per-task=4' >> index.sh
 echo "#SBATCH --chdir=$genome_dir" >> index.sh
 echo '#SBATCH --mem=24G' >> index.sh
 echo '' >> index.sh
+echo "source $(conda info --base)/etc/profile.d/conda.sh" >> index.sh
+echo "conda activate imprinting-align" >> index.sh
 echo "STAR --runMode genomeGenerate \\" >> index.sh
 echo "     --genomeDir . \\" >> index.sh
 echo "     --genomeFastaFiles $genome \\" >> index.sh

@@ -2,10 +2,13 @@
 set -euo pipefail
 
 # Call variants using bcftools as a SLURM array job.
-# Usage: bash 04_call_variants.sh <listfile> <bamfiles> <output_dir> <genome_dir> <genome> <prefix> <parent1> <parent2> <gene_bed> <min_mq> <min_bq> <qual_thresh> <cluster_size> <cluster_window>
+# Usage: bash 04_call_variants.sh <listfile> <bamfiles> <output_dir> <genome_dir> <genome> <prefix> <parent1> <parent2> <gene_bed> <min_mq> <min_bq> <qual_thresh> <cluster_size> <cluster_window> <partition>
 
-if [ "$#" -ne 14 ]; then
-    echo "Usage: $0 listfile bamfiles output_dir genome_dir genome prefix parent1 parent2 gene_bed min_mq min_bq qual_thresh cluster_size cluster_window"
+#ensure that the GATK genome dictionary is present in the folder with the genome
+#if not, use gatk CreateSequenceDictionary -R genome.fa -O genome.dict to create it
+
+if [ "$#" -ne 15 ]; then
+    echo "Usage: $0 listfile bamfiles output_dir genome_dir genome prefix parent1 parent2 gene_bed min_mq min_bq qual_thresh cluster_size cluster_window partition"
     exit 1
 fi
 
@@ -23,6 +26,7 @@ min_bq="${11}"
 qual_thresh="${12}"
 cluster_size="${13}"
 cluster_window="${14}"
+partition="${15}"
 
 if [ ! -f "$list" ]; then
     echo "Error: File '$list' not found."
@@ -55,13 +59,15 @@ fi
 
 mkdir -p "$output_dir"
 
-sbatch <<EOF
+job_script="${output_dir}/bcftools_${prefix}.array.sh"
+
+cat > "$job_script" <<EOF
 #!/bin/bash
 #SBATCH --job-name=bcftools_${prefix}
 #SBATCH --output=${output_dir}/Chr_%a.${prefix}.out
 #SBATCH --error=${output_dir}/Chr_%a.${prefix}.err
 #SBATCH --cpus-per-task=6
-#SBATCH -p common,scavenger
+#SBATCH -p $partition
 #SBATCH --chdir=${output_dir}
 #SBATCH --mem=30G
 #SBATCH --array=1-${nchr}
@@ -91,3 +97,7 @@ gatk VariantFiltration -R "$genome_dir/$genome" -V Chr_\${chrname}.${prefix}.cod
 grep -v "SnpCluster" Chr_\${chrname}.${prefix}.snpcluster.vcf | bgzip > Chr_\${chrname}.${prefix}.final_snps.vcf.gz
 tabix Chr_\${chrname}.${prefix}.final_snps.vcf.gz
 EOF
+
+chmod +x "$job_script"
+echo "Created array job script: $job_script"
+echo "Submit manually with: sbatch $job_script"
