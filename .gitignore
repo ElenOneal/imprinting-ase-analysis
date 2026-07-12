@@ -1,5 +1,7 @@
 results/*.txt
 results/*.pdf
 config/counts_object
-Mguttatusvar_IM767_887_v2.1.gene_exons.gff3
 pseudogenomes.sh
+endosperm_samples_rna.xlsx
+babrahamRNAPipeline.pdf
+config/Mguttatusvar_IM767_887_v2.1.gene_exons.gff3
