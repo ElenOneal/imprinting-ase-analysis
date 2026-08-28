@@ -160,7 +160,9 @@ Managed via conda (`envs/imprinting-align.yml`). Key tools:
 | STAR | 2.7.11b | Endosperm RNA-seq alignment |
 | Python | 3.8+ | ASE quantification |
 | R | 4.2.3 | Statistical analysis and figures |
-gffread to generate gtf file install with mamba install -c bioconda gffread then use the command gffread gene_exons.gff3 -T -o genes.gtf this file is needed for pseudogenome star genome indexing.
+| gffread | v0.12.9. | Generate gtf files from gff records |
+
+command gffread gene_exons.gff3 -T -o genes.gtf this file is needed for pseudogenome star genome indexing.
 
 ## License
 

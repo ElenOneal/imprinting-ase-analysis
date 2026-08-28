@@ -1,9 +1,9 @@
-#r1	r2	sample_id	barcode	population	species
-Mn_DHRO22_S8_L001_R1_001.fastq.gz	Mn_DHRO22_S8_L001_R2_001.fastq.gz	DHRO22_S8	DHRO22	ACTTGA	dhro	nudatus
-Mn_GMR2_S7_L001_R1_001.fastq.gz	Mn_GMR2_S7_L001_R2_001.fastq.gz	GMR2_S7	GMR2	CAGATC	gmr	nudatus
-Mn_DHRO22_S23_L002_R1_001.fastq.gz	Mn_DHRO22_S23_L002_R2_001.fastq.gz	DHRO22_S23	DHRO22	ACTTGA	dhro	nudatus
-Mn_GMR2_S22_L002_R1_001.fastq.gz	Mn_GMR2_S22_L002_R2_001.fastq.gz	GMR2_S22	GMR2	CAGATC	gmr	nudatus
-Mg_SOD_S2_L001_R1_001.fastq.gz	Mg_SOD_S2_L001_R2_001.fastq.gz	SOD_S2	SOD	ATTACTCG+GTCAGTAC	sod	guttatus
-Mg_DHR14_S1_L001_R1_001.fastq.gz	Mg_DHR14_S1_L001_R2_001.fastq.gz	DHR14_S1	DHR14	ATTACTCG+ACGTCCTG	dhr	guttatus
-Mg_DHR14_redo_S49_L001_R1_001.fastq.gz	Mg_DHR14_redo_S49_L001_R2_001.fastq.gz	DHR14_S49	DHR14	ATTACTCG+ACGTCCTG	dhr	guttatus
-Mg_SOD_redo_S50_L001_R1_001.fastq.gz	Mg_SOD_redo_S50_L001_R2_001.fastq.gz	SOD_S50	SOD	ATTACTCG+GTCAGTAC	sod	guttatus
+#r1	r2	sample_id	genotype	barcode	parent	species	lane
+Mn_DHRO22_S8_L001_R1_001.fastq.gz	Mn_DHRO22_S8_L001_R2_001.fastq.gz	DHRO22_S8	DHRO22	ACTTGA	nudatus	nudatus	1
+Mn_GMR2_S7_L001_R1_001.fastq.gz	Mn_GMR2_S7_L001_R2_001.fastq.gz	GMR2_S7	GMR2	CAGATC	nudatus	nudatus	1
+Mn_DHRO22_S23_L002_R1_001.fastq.gz	Mn_DHRO22_S23_L002_R2_001.fastq.gz	DHRO22_S23	DHRO22	ACTTGA	nudatus	nudatus	2
+Mn_GMR2_S22_L002_R1_001.fastq.gz	Mn_GMR2_S22_L002_R2_001.fastq.gz	GMR2_S22	GMR2	CAGATC	nudatus	nudatus	2
+Mg_SOD_S2_L001_R1_001.fastq.gz	Mg_SOD_S2_L001_R2_001.fastq.gz	SOD_S2	SOD	ATTACTCG+GTCAGTAC	guttatus	guttatus	1
+Mg_DHR14_S1_L001_R1_001.fastq.gz	Mg_DHR14_S1_L001_R2_001.fastq.gz	DHR14_S1	DHR14	ATTACTCG+ACGTCCTG	guttatus	guttatus	1
+Mg_DHR14_redo_S49_L001_R1_001.fastq.gz	Mg_DHR14_redo_S49_L001_R2_001.fastq.gz	DHR14_S49	DHR14	ATTACTCG+ACGTCCTG	guttatus	guttatus	2
+Mg_SOD_redo_S50_L001_R1_001.fastq.gz	Mg_SOD_redo_S50_L001_R2_001.fastq.gz	SOD_S50	SOD	ATTACTCG+GTCAGTAC	guttatus	guttatus	2

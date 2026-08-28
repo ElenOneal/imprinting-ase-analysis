@@ -6,7 +6,7 @@ set -euo pipefail
 #
 # Usage: bash 02_align_parents.sh <samples.tsv> <execute_dir> <reads_dir> <genome_dir> <genome_fasta> <partition> [time]
 #
-# samples.tsv columns: r1  r2  sample_id  genotype  barcode population species
+# samples.tsv columns: r1  r2  sample_id  genotype  barcode  parent  species  lane
 
 # Check if the correct number of arguments is provided
 if [ "$#" -lt 6 ] || [ "$#" -gt 7 ]; then
@@ -34,9 +34,24 @@ fi
 mkdir -p "$execute_dir"
 
 # Main loop
-while IFS=$'\t' read -r r1 r2 sample_id barcode _; do
+while IFS=$'\t' read -r r1 r2 sample_id genotype barcode parent species lane; do
   [[ "$r1" =~ ^# ]] && continue
   [[ -z "${r1:-}" ]] && continue
+  [[ "$r1" == "r1" ]] && continue
+  [[ -z "${r2:-}" || -z "${sample_id:-}" ]] && continue
+
+  if [[ "$r1" = /* ]]; then
+    r1_path="$r1"
+  else
+    r1_path="$reads_dir/$r1"
+  fi
+
+  if [[ "$r2" = /* ]]; then
+    r2_path="$r2"
+  else
+    r2_path="$reads_dir/$r2"
+  fi
+
   script_file="${sample_id}.align.sh"
   {
     echo '#!/bin/bash'
@@ -53,7 +68,7 @@ while IFS=$'\t' read -r r1 r2 sample_id barcode _; do
     echo ''
     echo "source $(conda info --base)/etc/profile.d/conda.sh"
     echo "conda activate imprinting-align"
-    echo "bwa mem -t 6 -M $genome_dir/$genome $reads_dir/${sample_id}.PE.R1.fq.gz $reads_dir/${sample_id}.PE.R2.fq.gz | samtools view -Shb | samtools sort -T ${sample_id}.sort -o ${sample_id}.sort.bam"
+    echo "bwa mem -t 6 -M \"$genome_dir/$genome\" \"$r1_path\" \"$r2_path\" | samtools view -bh | samtools sort -T ${sample_id}.sort -o ${sample_id}.sort.bam"
     echo "samtools index ${sample_id}.sort.bam"
   } > "$script_file"
 done < "$samples"

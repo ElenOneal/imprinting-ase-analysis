@@ -43,14 +43,14 @@ if [ ! -f "$gene_bed" ]; then
     exit 2
 fi
 
-# Validate list file format: should have exactly 2 columns, no headers
-if ! awk 'NF != 2 {exit 1}' "$list"; then
-    echo "Error: List file '$list' must have exactly 2 columns (region chrname) with no headers."
+# Validate list file format: should have exactly 1 column (region), no headers
+if ! awk 'NF == 0 || $1 ~ /^#/ {next} NF != 1 {exit 1}' "$list"; then
+    echo "Error: List file '$list' must have exactly 1 column (region) with no headers."
     exit 2
 fi
 
 # Count chromosomes for array size
-nchr=$(grep -v '^#' "$list" | wc -l)
+nchr=$(awk 'NF > 0 && $1 !~ /^#/ {n++} END {print n+0}' "$list")
 
 if [ "$nchr" -eq 0 ]; then
     echo "Error: No valid lines in list file '$list'."
@@ -63,7 +63,7 @@ job_script="${output_dir}/bcftools_${prefix}.array.sh"
 
 cat > "$job_script" <<EOF
 #!/bin/bash
-#SBATCH --job-name=bcftools_${prefix}
+#SBATCH --job-name=vcf${prefix}
 #SBATCH --output=${output_dir}/Chr_%a.${prefix}.out
 #SBATCH --error=${output_dir}/Chr_%a.${prefix}.err
 #SBATCH --cpus-per-task=6
@@ -76,26 +76,26 @@ source $(conda info --base)/etc/profile.d/conda.sh
 conda activate imprinting-align
 
 # Get the chromosome for this array task
-region=\$(awk -v i=\$SLURM_ARRAY_TASK_ID 'NR==i {print \$1}' ${list})
-chrname=\$(awk -v i=\$SLURM_ARRAY_TASK_ID 'NR==i {print \$2}' ${list})
+region=\$(awk -v i=\$SLURM_ARRAY_TASK_ID 'NF > 0 && \$1 !~ /^#/ {n++; if (n==i) {print \$1; exit}}' ${list})
+chrname=\${region%%:*}
 
 bcftools mpileup --threads 6 --redo-BAQ --min-MQ ${min_mq} --min-BQ ${min_bq} \
     --per-sample-mF --annotate FORMAT/AD,FORMAT/DP,INFO/AD \
     -f ${genome_dir}/${genome} -b ${bamfiles} -I -r \$region \
   | bcftools call --multiallelic-caller \
   | bcftools filter --threads 6 --SnpGap 3 \
-    -e "QUAL<${qual_thresh} || INFO/RPBZ<-2 || INFO/RPBZ>2 || INFO/SCBZ<-2 || INFO/SCBZ>2" -Oz -o Chr_\${chrname}.${prefix}.filtered.vcf.gz
+    -e "QUAL<${qual_thresh} || INFO/RPBZ<-2 || INFO/RPBZ>2 || INFO/SCBZ<-2 || INFO/SCBZ>2" -Oz -o ${chrname}.${prefix}.filtered.vcf.gz
 
-tabix Chr_\${chrname}.${prefix}.filtered.vcf.gz
+tabix ${chrname}.${prefix}.filtered.vcf.gz
 
-bcftools view -s "$p1,$p2" -v snps -T "$gene_bed" Chr_\${chrname}.${prefix}.filtered.vcf.gz | bcftools filter -e 'GT=="mis" || GT=="het" || (GT[0]=="ref" && GT[1]=="ref")' -Oz -o Chr_\${chrname}.${prefix}.coding_snps.vcf.gz
+bcftools view -s "$p1,$p2" -v snps -T "$gene_bed" ${chrname}.${prefix}.filtered.vcf.gz | bcftools filter -e 'GT=="mis" || GT=="het" || (GT[0]=="ref" && GT[1]=="ref")' -Oz -o ${chrname}.${prefix}.coding_snps.vcf.gz
 
-tabix Chr_\${chrname}.${prefix}.coding_snps.vcf.gz
+tabix ${chrname}.${prefix}.coding_snps.vcf.gz
 
-gatk VariantFiltration -R "$genome_dir/$genome" -V Chr_\${chrname}.${prefix}.coding_snps.vcf.gz -O Chr_\${chrname}.${prefix}.snpcluster.vcf --cluster-size "$cluster_size" --cluster-window-size "$cluster_window"
+gatk VariantFiltration -R "$genome_dir/$genome" -V ${chrname}.${prefix}.coding_snps.vcf.gz -O ${chrname}.${prefix}.snpcluster.vcf --cluster-size "$cluster_size" --cluster-window-size "$cluster_window"
 
-grep -v "SnpCluster" Chr_\${chrname}.${prefix}.snpcluster.vcf | bgzip > Chr_\${chrname}.${prefix}.final_snps.vcf.gz
-tabix Chr_\${chrname}.${prefix}.final_snps.vcf.gz
+grep -v "SnpCluster" ${chrname}.${prefix}.snpcluster.vcf | bgzip > ${chrname}.${prefix}.final_snps.vcf.gz
+tabix ${chrname}.${prefix}.final_snps.vcf.gz
 EOF
 
 chmod +x "$job_script"
